@@ -1,4 +1,4 @@
-name: CI - Build and Push Docker Image
+name: CI - Build and Push Flask Image
 on:
   push:
     branches: [ "main" ]
@@ -19,9 +19,9 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
-      - name: Build and Push Image
+      - name: Build and Push Flask Image
         uses: docker/build-push-action@v4
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/soloud:${{ github.sha }}
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/soloud-flask:${{ github.sha }}
