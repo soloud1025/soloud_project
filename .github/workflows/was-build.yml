@@ -1,4 +1,4 @@
-name: CI - Build and Push WAS (Flask)
+name: CI - Build and Push WAS (Flaskk)
 
 on:
   push:
@@ -29,5 +29,3 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/soloud-flask:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/soloud-flask:${{ github.sha }}
-
-            #7777
