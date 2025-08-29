@@ -1,4 +1,4 @@
-name: CI - Build and Push WAS (Flaskk)
+name: CI - Build and Push WAS (Flask)
 
 on:
   push:
