@@ -9,9 +9,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write   # <-- push 허용 필요
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
@@ -20,32 +25,26 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # =========================
-      # Build & Push WAS Service
+      # Build & Push WAS
       # =========================
       - name: Build and push WAS image
         run: |
-          WAS_IMAGE=dockerhubID/soloud-was
+          WAS_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/soloud-was
           WAS_TAG=${{ github.sha }}
           docker build -t $WAS_IMAGE:$WAS_TAG ./was
           docker push $WAS_IMAGE:$WAS_TAG
-
-          # Update WAS manifest
-          FILE=k8s/was/deployment.yaml
-          sed -i "s|image: .*|image: $WAS_IMAGE:$WAS_TAG|" $FILE
+          sed -i "s|image: .*|image: $WAS_IMAGE:$WAS_TAG|" k8s/was/deployment.yaml
 
       # =========================
-      # Build & Push WEB Service
+      # Build & Push WEB
       # =========================
       - name: Build and push WEB image
         run: |
-          WEB_IMAGE=dockerhubID/soloud-web
+          WEB_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/soloud-web
           WEB_TAG=${{ github.sha }}
           docker build -t $WEB_IMAGE:$WEB_TAG ./web
           docker push $WEB_IMAGE:$WEB_TAG
-
-          # Update WEB manifest
-          FILE=k8s/web/deployment.yaml
-          sed -i "s|image: .*|image: $WEB_IMAGE:$WEB_TAG|" $FILE
+          sed -i "s|image: .*|image: $WEB_IMAGE:$WEB_TAG|" k8s/web/deployment.yaml
 
       # =========================
       # Commit manifest changes
@@ -54,7 +53,6 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-
           git add k8s/was/deployment.yaml k8s/web/deployment.yaml
           git commit -m "Update WAS/WEB image tags to ${{ github.sha }}"
           git push
