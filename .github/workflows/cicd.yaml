@@ -11,7 +11,7 @@ jobs:
     env:
       REGISTRY: docker.io
       DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKER_PASS: ${{ secrets.DOCKERHUB_TOKEN }}
+      DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
       REPO: soloud1025
       MANIFESTS_REPO: https://github.com/soloud1025/soloud-manifests.git
       ARGOCD_SERVER: https://k8s-argocd-argocdse-63daefea19-fe19fad648c3d078.elb.ap-northeast-2.amazonaws.com
