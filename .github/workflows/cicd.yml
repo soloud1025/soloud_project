@@ -1,4 +1,4 @@
-name: CI/CD Pipeline (WAS only)
+name: CI/CD Pipeline (WAS only, ArgoCD sync with k8s path)
 
 on:
   push:
@@ -16,7 +16,7 @@ jobs:
       MANIFESTS_REPO: https://github.com/soloud1025/soloud-manifests.git
 
     steps:
-      # 1. 소스 코드 체크아웃
+      # 1. 앱 코드 체크아웃
       - name: Checkout source
         uses: actions/checkout@v3
 
@@ -35,23 +35,21 @@ jobs:
       - name: Push soloud-was image
         run: docker push $REGISTRY/$REPO/soloud-was:${IMAGE_TAG}
 
-      # 5. manifests 저장소 체크아웃
+      # 5. manifests repo 체크아웃
       - name: Checkout manifests repo
         uses: actions/checkout@v3
         with:
           repository: soloud1025/soloud-manifests
-          path: manifests
           token: ${{ secrets.MANIFESTS_PAT }}
 
       # 6. was-deployment.yaml 이미지 태그 업데이트
       - name: Update WAS deployment image
         run: |
-          sed -i "s|image: .*/soloud-was:.*|image: $REGISTRY/$REPO/soloud-was:${IMAGE_TAG}|" manifests/k8s/was-deployment.yaml
+          sed -i "s|image: .*/soloud-was:.*|image: $REGISTRY/$REPO/soloud-was:${IMAGE_TAG}|" k8s/was-deployment.yaml
 
       # 7. 변경 내용 커밋 & 푸시
       - name: Commit and push changes
         run: |
-          cd manifests
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add k8s/was-deployment.yaml
