@@ -1,0 +1,85 @@
+name: CI/CD Pipeline (with ArgoCD Sync)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY: docker.io
+      DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKER_PASS: ${{ secrets.DOCKERHUB_TOKEN }}
+      REPO: soloud1025
+      MANIFESTS_REPO: https://github.com/soloud1025/soloud-manifests.git
+      ARGOCD_SERVER: https://k8s-argocd-argocdse-63daefea19-fe19fad648c3d078.elb.ap-northeast-2.amazonaws.com
+
+    steps:
+      # 1. 코드 리포지토리 체크아웃
+      - name: Checkout source
+        uses: actions/checkout@v3
+
+      # 2. 이미지 태그 (타임스탬프 기반) 설정
+      - name: Set IMAGE TAG
+        run: echo "IMAGE_TAG=$(date +%Y%m%d%H%M%S)" >> $GITHUB_ENV
+
+      # 3. Docker Hub 로그인
+      - name: Log in to Docker Hub
+        run: echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin
+
+      # 4. Flask(Web) 이미지 빌드 & 푸시
+      - name: Build soloud-flask image
+        run: docker build -t $REGISTRY/$REPO/soloud-flask:${IMAGE_TAG} ./web
+
+      - name: Push soloud-flask image
+        run: docker push $REGISTRY/$REPO/soloud-flask:${IMAGE_TAG}
+
+      # 5. WAS 이미지 빌드 & 푸시
+      - name: Build soloud-was image
+        run: docker build -t $REGISTRY/$REPO/soloud-was:${IMAGE_TAG} ./was
+
+      - name: Push soloud-was image
+        run: docker push $REGISTRY/$REPO/soloud-was:${IMAGE_TAG}
+
+      # 6. manifests 저장소 체크아웃
+      - name: Checkout manifests repo
+        uses: actions/checkout@v3
+        with:
+          repository: soloud1025/soloud-manifests
+          path: manifests
+          token: ${{ secrets.MANIFESTS_PAT }}
+
+      # 7. deployment.yaml 이미지 태그 업데이트
+      - name: Update deployment images
+        run: |
+          sed -i "s|image: .*/soloud-flask:.*|image: $REGISTRY/$REPO/soloud-flask:${IMAGE_TAG}|" manifests/k8s/web/deployment.yaml
+          sed -i "s|image: .*/soloud-was:.*|image: $REGISTRY/$REPO/soloud-was:${IMAGE_TAG}|" manifests/k8s/was/deployment.yaml
+
+      # 8. 변경 내용 커밋 & 푸시
+      - name: Commit and push changes
+        run: |
+          cd manifests
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add .
+          git commit -m "Update images to ${IMAGE_TAG}" || echo "No changes to commit"
+          git push
+
+      # 9. ArgoCD Sync (flask)
+      - name: ArgoCD Sync (flask)
+        run: |
+          curl -k -X POST \
+            -H "Content-Type: application/json" \
+            -u "${{ secrets.ARGOCD_USER }}:${{ secrets.ARGOCD_PASS }}" \
+            $ARGOCD_SERVER/api/v1/applications/argocd/soloud-flask/sync
+
+      # 10. ArgoCD Sync (was)
+      - name: ArgoCD Sync (was)
+        run: |
+          curl -k -X POST \
+            -H "Content-Type: application/json" \
+            -u "${{ secrets.ARGOCD_USER }}:${{ secrets.ARGOCD_PASS }}" \
+            $ARGOCD_SERVER/api/v1/applications/argocd/soloud-was/sync
+
