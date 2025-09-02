@@ -37,4 +37,3 @@ EXPOSE 8000
 #    - 참고: PYTHONPATH=/opt/bootstrap 는 Deployment에서 환경변수로 설정
 CMD ["sh", "-lc", "exec gunicorn -w 2 -b 0.0.0.0:8000 bootstrap:app"]
 
-# dummy test 2025. 09. 02. (화) 04:19:05 UTC
