@@ -68,9 +68,8 @@ jobs:
           WEB_IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/soloud-web:${{ github.sha }}"
 
           # 주의: sed는 파일 내 'image:' 첫 번째 일치만 바꾸도록 정규식 좁힘
-          sed -i 's|^\(\s*image:\s*\).*soloud-was.*$|\1'"${WAS_IMAGE}"'|' manifests/k8s/was-deployment.yaml
-          sed -i 's|^\(\s*image:\s*\).*soloud-web.*$|\1'"${WEB_IMAGE}"'|' manifests/k8s/web-deployment.yaml
-
+          sed -i 's|^\(\s*image:\s*\).*soloud-was.*$|\1docker.io/soloud1025/soloud-was:'"$GITHUB_SHA"'|' manifests/k8s/was/was-deployment.yaml
+          sed -i 's|^\(\s*image:\s*\).*soloud-web.*$|\1docker.io/soloud1025/soloud-web:'"$GITHUB_SHA"'|' manifests/k8s/web/web-deployment.yaml
           echo "WAS_IMAGE=${WAS_IMAGE}"
           echo "WEB_IMAGE=${WEB_IMAGE}"
 
