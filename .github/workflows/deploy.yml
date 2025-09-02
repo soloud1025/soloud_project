@@ -1,0 +1,86 @@
+name: CI/CD - Build WAS/WEB and Update Manifests
+
+on:
+  push:
+    branches: [ "main" ]     # main에 푸시될 때 자동 실행
+
+permissions:
+  contents: write            # manifests 리포 커밋/푸시에 필요
+
+concurrency:
+  group: cicd-main           # 같은 브랜치 동시 실행 방지
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1) 앱 코드 체크아웃 (현재 리포: soloud_project)
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+
+      # 2) Docker Hub 로그인 (시크릿 필요)
+      #    - DOCKERHUB_USERNAME
+      #    - DOCKERHUB_PASSWORD
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      # 3) WAS 이미지 빌드 & 푸시
+      #    - ./was 디렉토리에 Dockerfile 있다고 가정
+      - name: Build & Push WAS
+        uses: docker/build-push-action@v5
+        with:
+          context: ./was                    # WAS 소스 위치
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/soloud-was:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/soloud-was:latest
+
+      # 4) WEB 이미지 빌드 & 푸시
+      #    - ./web 디렉토리에 Dockerfile 있다고 가정
+      - name: Build & Push WEB
+        uses: docker/build-push-action@v5
+        with:
+          context: ./web                    # WEB 소스 위치
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/soloud-web:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/soloud-web:latest
+
+      # 5) 매니페스트 리포 체크아웃 (별도 리포: soloud-manifests)
+      #    - MANIFESTS_PAT: 해당 리포에 푸시 가능한 PAT
+      - name: Checkout manifests repo
+        uses: actions/checkout@v4
+        with:
+          repository: soloud1025/soloud-manifests
+          token: ${{ secrets.MANIFESTS_PAT }}
+          path: manifests
+
+      # 6) 이미지 태그 치환 (sed)
+      #    - was-deployment.yaml / web-deployment.yaml의 image: 줄만 안전하게 바꿈
+      - name: Update image tags in manifests
+        run: |
+          WAS_IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/soloud-was:${{ github.sha }}"
+          WEB_IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/soloud-web:${{ github.sha }}"
+
+          # 주의: sed는 파일 내 'image:' 첫 번째 일치만 바꾸도록 정규식 좁힘
+          sed -i 's|^\(\s*image:\s*\).*soloud-was.*$|\1'"${WAS_IMAGE}"'|' manifests/k8s/was-deployment.yaml
+          sed -i 's|^\(\s*image:\s*\).*soloud-web.*$|\1'"${WEB_IMAGE}"'|' manifests/k8s/web-deployment.yaml
+
+          echo "WAS_IMAGE=${WAS_IMAGE}"
+          echo "WEB_IMAGE=${WEB_IMAGE}"
+
+      # 7) 커밋 & 푸시 → ArgoCD가 k8s/ 감시하여 자동 Sync
+      - name: Commit & Push
+        run: |
+          cd manifests
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add k8s/was-deployment.yaml k8s/web-deployment.yaml
+          git commit -m "chore: deploy WAS=${{ github.sha }} / WEB=${{ github.sha }}" || echo "No changes"
+          git push
+
