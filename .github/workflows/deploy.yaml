@@ -36,8 +36,8 @@ jobs:
           context: ./was
           push: true
           tags: |
-            ghcr.io/${{ secrets.GHCR_USERNAME }}/soloud-was:${{ github.sha }}
-            ghcr.io/${{ secrets.GHCR_USERNAME }}/soloud-was:latest
+            ghcr.io/soloud1025/soloud-was:${{ github.sha }}
+            ghcr.io/soloud1025/soloud-was:latest
 
       # 4) manifests 리포 체크아웃 (soloud-manifests)
       - name: Checkout manifests repo
@@ -47,23 +47,26 @@ jobs:
           token: ${{ secrets.MANIFESTS_PAT }}
           path: manifests
 
-      # 5) 최신화 (rebase로 충돌 방지)
+      # 5) 최신화 (충돌 방지)
       - name: Sync manifests repo with remote
         run: |
           cd manifests
           git fetch origin main
           git rebase origin/main || git rebase --abort
 
-      # 6) yq 설치
+      # 6) Go-yq 설치 (mikefarah 버전)
       - name: Install yq
-        run: sudo apt-get update && sudo apt-get install -y yq
+        run: |
+          wget https://github.com/mikefarah/yq/releases/download/v4.44.1/yq_linux_amd64 -O /usr/bin/yq
+          chmod +x /usr/bin/yq
 
-      # 7) WAS 이미지 태그 업데이트
+      # 7) WAS 이미지 태그 업데이트 (ghcr.io 하드코딩)
       - name: Update WAS image in manifests
         run: |
-          WAS_IMAGE="ghcr.io/${{ secrets.GHCR_USERNAME }}/soloud-was:${GITHUB_SHA}"
+          WAS_IMAGE="ghcr.io/soloud1025/soloud-was:${GITHUB_SHA}"
           yq -i ".spec.template.spec.containers[0].image = \"${WAS_IMAGE}\"" manifests/k8s/was/was-deployment.yaml
-          echo "WAS_IMAGE=${WAS_IMAGE}"
+          echo "Updated WAS image to: ${WAS_IMAGE}"
+          grep image manifests/k8s/was/was-deployment.yaml
 
       # 8) 커밋 & 푸시
       - name: Commit & Push changes
