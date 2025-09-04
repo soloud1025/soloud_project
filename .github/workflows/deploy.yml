@@ -61,7 +61,7 @@ jobs:
           sed -i "s|^\(\s*image:\s*\).*soloud-was.*$|\1$WAS_IMAGE|" manifests/k8s/was/was-deployment.yaml
           echo "WAS_IMAGE=${WAS_IMAGE}"
 
-      # 7) 커밋 & 푸시
+      # 7) 커밋 & 푸시commit & push
       - name: Commit & Push changes
         run: |
           cd manifests
