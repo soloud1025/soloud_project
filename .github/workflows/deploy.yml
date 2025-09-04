@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: write            # manifests 리포 커밋/푸시에 필요
+  packages: write            # GHCR 이미지 푸시에 필요
 
 concurrency:
   group: cicd-main           # 같은 브랜치 동시 실행 방지
@@ -20,14 +21,15 @@ jobs:
       - name: Checkout app repo
         uses: actions/checkout@v4
 
-      # 2) Docker Hub 로그인 (시크릿 필요)
-      #    - DOCKERHUB_USERNAME
-      #    - DOCKERHUB_PASSWORD
-      - name: Log in to Docker Hub
+      # 2) GHCR 로그인
+      #    - GHCR_USERNAME : GitHub ID
+      #    - GHCR_TOKEN    : PAT (write:packages 권한 포함)
+      - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+          registry: ghcr.io
+          username: ${{ secrets.GHCR_USERNAME }}
+          password: ${{ secrets.GHCR_TOKEN }}
 
       # 3) WAS 이미지 빌드 & 푸시
       #    - ./was 디렉토리에 Dockerfile 있다고 가정
@@ -37,8 +39,8 @@ jobs:
           context: ./was
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/soloud-was:${{ github.sha }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/soloud-was:latest
+            ghcr.io/${{ secrets.GHCR_USERNAME }}/soloud-was:${{ github.sha }}
+            ghcr.io/${{ secrets.GHCR_USERNAME }}/soloud-was:latest
 
       # 4) 매니페스트 리포 체크아웃 (별도 리포: soloud-manifests)
       #    - MANIFESTS_PAT: 해당 리포에 푸시 가능한 PAT
@@ -52,7 +54,7 @@ jobs:
       # 5) WAS 이미지 태그 치환 (sed)
       - name: Update WAS image in manifests
         run: |
-          WAS_IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/soloud-was:${GITHUB_SHA}"
+          WAS_IMAGE="ghcr.io/${{ secrets.GHCR_USERNAME }}/soloud-was:${GITHUB_SHA}"
           sed -i "s|^\(\s*image:\s*\).*soloud-was.*$|\1$WAS_IMAGE|" manifests/k8s/was/was-deployment.yaml
           echo "WAS_IMAGE=${WAS_IMAGE}"
 
@@ -65,4 +67,3 @@ jobs:
           git add k8s/was/was-deployment.yaml
           git commit -m "chore: deploy WAS=${{ github.sha }}" || echo "No changes"
           git push
-
