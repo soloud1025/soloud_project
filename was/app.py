@@ -1,4 +1,4 @@
-import re #0
+import re
 import os
 import logging
 import time
@@ -19,10 +19,10 @@ import traceback
 import pymysql
 
 load_dotenv()
-DB_URL = "mysql+pymysql://admin:soldesk901@project-db.c94ss824as09.ap-northeast-2.rds.amazonaws.com:3306/project?charset=utf8mb4"
+DB_URL = os.getenv("DB_URL")
 
 app = Flask(__name__)
-CORS(app, supports_credentials=True, origins=["http://localhost:3000", "http://15.165.19.234"])
+CORS(app, supports_credentials=True, origins=[os.getenv("CF_ORIGIN")])
 app.config['JSON_AS_ASCII'] = False
 app.secret_key = os.getenv("SECRET_KEY", "dev-change-me")
 app.config.update(
