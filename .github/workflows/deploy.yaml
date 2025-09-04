@@ -47,7 +47,7 @@ jobs:
           token: ${{ secrets.MANIFESTS_PAT }}
           path: manifests
 
-      # 5) 최신화 (충돌 방지)
+      # 5) 최신화 (rebase로 충돌 방지)
       - name: Sync manifests repo with remote
         run: |
           cd manifests
