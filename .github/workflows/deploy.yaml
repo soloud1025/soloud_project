@@ -57,8 +57,8 @@ jobs:
       # 6) Go-yq 설치 (mikefarah 버전)
       - name: Install yq
         run: |
-          wget https://github.com/mikefarah/yq/releases/download/v4.44.1/yq_linux_amd64 -O /usr/bin/yq
-          chmod +x /usr/bin/yq
+          wget https://github.com/mikefarah/yq/releases/download/v4.44.1/yq_linux_amd64 -O /usr/local/bin/yq
+          chmod +x /usr/local/bin/yq
 
       # 7) WAS 이미지 태그 업데이트 (ghcr.io 하드코딩)
       - name: Update WAS image in manifests
