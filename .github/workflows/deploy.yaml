@@ -1,0 +1,77 @@
+name: CI/CD - Build WAS and Update Manifests
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: cicd-main
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1) 앱 코드 체크아웃 (soloud_project)
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+
+      # 2) GHCR 로그인
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ secrets.GHCR_USERNAME }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      # 3) WAS 이미지 빌드 & 푸시
+      - name: Build & Push WAS
+        uses: docker/build-push-action@v5
+        with:
+          context: ./was
+          push: true
+          tags: |
+            ghcr.io/${{ secrets.GHCR_USERNAME }}/soloud-was:${{ github.sha }}
+            ghcr.io/${{ secrets.GHCR_USERNAME }}/soloud-was:latest
+
+      # 4) manifests 리포 체크아웃 (soloud-manifests)
+      - name: Checkout manifests repo
+        uses: actions/checkout@v4
+        with:
+          repository: soloud1025/soloud-manifests
+          token: ${{ secrets.MANIFESTS_PAT }}
+          path: manifests
+
+      # 5) 최신화 (rebase로 충돌 방지)
+      - name: Sync manifests repo with remote
+        run: |
+          cd manifests
+          git fetch origin main
+          git rebase origin/main || git rebase --abort
+
+      # 6) yq 설치
+      - name: Install yq
+        run: sudo apt-get update && sudo apt-get install -y yq
+
+      # 7) WAS 이미지 태그 업데이트
+      - name: Update WAS image in manifests
+        run: |
+          WAS_IMAGE="ghcr.io/${{ secrets.GHCR_USERNAME }}/soloud-was:${GITHUB_SHA}"
+          yq -i ".spec.template.spec.containers[0].image = \"${WAS_IMAGE}\"" manifests/k8s/was/was-deployment.yaml
+          echo "WAS_IMAGE=${WAS_IMAGE}"
+
+      # 8) 커밋 & 푸시
+      - name: Commit & Push changes
+        run: |
+          cd manifests
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add k8s/was/was-deployment.yaml
+          git commit -m "chore: deploy WAS=${{ github.sha }}" || echo "No changes"
+          git push origin main
+
