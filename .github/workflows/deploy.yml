@@ -2,14 +2,14 @@ name: CI/CD - Build WAS and Update Manifests
 
 on:
   push:
-    branches: [ "main" ]     # main 브랜치 푸시 시 자동 실행
+    branches: [ "main" ]
 
 permissions:
-  contents: write            # manifests 리포 커밋/푸시에 필요
-  packages: write            # GHCR 이미지 푸시에 필요
+  contents: write
+  packages: write
 
 concurrency:
-  group: cicd-main           # 같은 브랜치 동시 실행 방지
+  group: cicd-main
   cancel-in-progress: true
 
 jobs:
@@ -22,8 +22,6 @@ jobs:
         uses: actions/checkout@v4
 
       # 2) GHCR 로그인
-      #    - GHCR_USERNAME : GitHub ID
-      #    - GHCR_TOKEN    : PAT (write:packages 권한 포함)
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -32,7 +30,6 @@ jobs:
           password: ${{ secrets.GHCR_TOKEN }}
 
       # 3) WAS 이미지 빌드 & 푸시
-      #    - ./was 디렉토리에 Dockerfile 있다고 가정
       - name: Build & Push WAS
         uses: docker/build-push-action@v5
         with:
@@ -42,8 +39,7 @@ jobs:
             ghcr.io/${{ secrets.GHCR_USERNAME }}/soloud-was:${{ github.sha }}
             ghcr.io/${{ secrets.GHCR_USERNAME }}/soloud-was:latest
 
-      # 4) 매니페스트 리포 체크아웃 (별도 리포: soloud-manifests)
-      #    - MANIFESTS_PAT: 해당 리포에 푸시 가능한 PAT
+      # 4) manifests 리포 체크아웃
       - name: Checkout manifests repo
         uses: actions/checkout@v4
         with:
@@ -51,19 +47,27 @@ jobs:
           token: ${{ secrets.MANIFESTS_PAT }}
           path: manifests
 
-      # 5) WAS 이미지 태그 치환 (sed)
+      # 5) 리포 최신화 (충돌 방지용 rebase)
+      - name: Sync manifests repo with remote
+        run: |
+          cd manifests
+          git fetch origin main
+          git rebase origin/main || git rebase --abort
+
+      # 6) WAS 이미지 태그 업데이트
       - name: Update WAS image in manifests
         run: |
           WAS_IMAGE="ghcr.io/${{ secrets.GHCR_USERNAME }}/soloud-was:${GITHUB_SHA}"
           sed -i "s|^\(\s*image:\s*\).*soloud-was.*$|\1$WAS_IMAGE|" manifests/k8s/was/was-deployment.yaml
           echo "WAS_IMAGE=${WAS_IMAGE}"
 
-      # 6) 커밋 & 푸시 → ArgoCD가 k8s/was 감시하여 자동 Sync
-      - name: Commit & Push
+      # 7) 커밋 & 푸시
+      - name: Commit & Push changes
         run: |
           cd manifests
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add k8s/was/was-deployment.yaml
           git commit -m "chore: deploy WAS=${{ github.sha }}" || echo "No changes"
-          git push
+          git push origin main
+
